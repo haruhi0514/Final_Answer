@@ -1,0 +1,85 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+import re
+import time
+
+# ぐるなび 店舗一覧ページ（全国）
+list_url = "https://r.gnavi.co.jp/area/jp/rs/?p={}"
+
+shop_links = []
+
+# 50店舗集める
+for page in range(1, 20):
+    res = requests.get(list_url.format(page))
+    soup = BeautifulSoup(res.text, "html.parser")
+    
+    shops = soup.select(".style_restaurant_name a")
+    for s in shops:
+        link = s.get("href")
+        if link and link.startswith("https://r.gnavi.co.jp/"):
+            shop_links.append(link)
+        if len(shop_links) >= 50:
+            break
+    if len(shop_links) >= 50:
+        break
+    time.sleep(1)
+
+records = []
+
+# 住所正規表現
+addr_pattern = re.compile(r"(東京都|北海道|(?:大阪|京都|兵庫)府|.{2,3}県)(.+?市|.+?区|.+?町|.+?村)(.*)")
+
+for link in shop_links:
+    res = requests.get(link)
+    soup = BeautifulSoup(res.text, "html.parser")
+
+    # 店名
+    name = soup.select_one(".display_name")
+    name = name.text.strip() if name else ""
+
+    # 電話番号
+    tel = soup.select_one(".number")
+    tel = tel.text.strip() if tel else ""
+
+    # メールアドレス（ない場合は空欄）
+    email = ""
+
+    # 住所
+    address_tag = soup.select_one(".region")
+    prefecture = city = address_num = building = ""
+
+    if address_tag:
+        address = address_tag.text.strip()
+        m = addr_pattern.search(address)
+        if m:
+            prefecture = m.group(1)
+            city = m.group(2)
+            rest = m.group(3).strip()
+
+            # 番地＋建物名分割（完全じゃなくてOKという課題条件に従う）
+            if " " in rest:
+                parts = rest.split(" ", 1)
+                address_num = parts[0]
+                building = parts[1]
+            else:
+                address_num = rest
+
+    # 課題1-1 は URL は取得できない → 空欄
+    homepage = ""
+
+    # SSLも空欄
+    ssl = ""
+
+    records.append([name, tel, email, prefecture, city, address_num, building, homepage, ssl])
+    time.sleep(1)
+
+df = pd.DataFrame(records, columns=[
+    "店舗名", "電話番号", "メールアドレス",
+    "都道府県", "市区町村", "番地", "建物名",
+    "URL", "SSL"
+])
+
+df.to_csv("1-1.csv", index=False, encoding="utf-8-sig")
+
+print("✅ 1-1.csv を作成しました。提出できます。")
