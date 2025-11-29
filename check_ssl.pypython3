@@ -1,0 +1,28 @@
+import pandas as pd
+
+# CSVを読み込む
+df = pd.read_csv('1-2.csv', encoding='utf-8-sig')
+
+print(f"Total rows: {len(df)}")
+print(f"URL列の型: {df['URL'].dtype}")
+
+# SSL列を修正
+def check_ssl(url):
+    if pd.isna(url):
+        return False
+    url_str = str(url).strip()
+    if url_str.startswith('https://'):
+        return True
+    else:
+        return False
+
+df['SSL'] = df['URL'].apply(check_ssl)
+
+# 保存
+df.to_csv('1-2.csv', index=False, encoding='utf-8-sig')
+
+print("\n修正後:")
+print(df[['店舗名', 'URL', 'SSL']].head(10))
+
+print(f"\nSSL=Trueの数: {df['SSL'].sum()}")
+print(f"SSL=Falseの数: {(~df['SSL']).sum()}")
